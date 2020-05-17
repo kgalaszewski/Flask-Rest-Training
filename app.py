@@ -149,6 +149,86 @@ def login():
 
 
 
+
+
+# CRUD ENDPOINTS
+# CREATE
+@app.route('/add_planet', methods=['POST'])
+@jwt_required ## thats enough to ensure that user needs to be authorized with token 
+def add_planet():
+    planet_name = request.json['planet_name']
+    planet = Planet.query.filter_by(planet_name=planet_name).first()
+    
+    if planet:
+        return jsonify(f'There is already planet with this name ({planet_name})'), 409 # 409 means conflict
+    else:
+        planet_type = request.json['planet_type']
+        home_star = request.json['home_star']
+        mass = float(request.json['mass'])
+        radius = float(request.json['radius'])
+        distance = float(request.json['distance'])
+        new_planet = Planet(planet_name=planet_name,
+                            planet_type=planet_type,
+                            home_star=home_star,
+                            mass=mass,
+                            radius=radius,
+                            distance=distance)
+        db.session.add(new_planet)
+        db.session.commit()
+        
+        return jsonify(message=f'You created a planet {planet_name}'), 201 
+
+
+
+# READ
+@app.route('/planet_details/<int:planet_id>', methods=['GET'])
+def planet_details(planet_id: int):
+    planet = Planet.query.filter_by(planet_id=planet_id).first()
+    if planet:
+        result = planet_schema.dump(planet)
+        return jsonify(result)
+    else:
+        return jsonify(message='That planet does not exist'), 404
+
+
+
+
+# UPDATE
+@app.route('/update_planet', methods=['PUT'])
+@jwt_required
+def update_planet():
+    planet_name = request.form['planet_name']
+    planet = Planet.query.filter_by(planet_name=planet_name).first()
+    if planet:
+        planet.planet_name = planet_name
+        planet.planet_type = request.form['planet_type']
+        planet.home_star = request.form['home_star']
+        planet.radius = float(request.form['radius'])
+        planet.distance = float(request.form['distance'])
+        planet.mass = float(request.form['mass'])
+        db.session.commit() # its enough to update the object in db
+
+        return jsonify(message=f'You updated the planet {planet.planet_name}'), 202
+    else:
+        return jsonify('There is no such planet'), 404
+
+
+
+# DELETE
+@app.route('/delete_planet/<int:planet_id>', methods=['DELETE'])
+@jwt_required
+def delete_planet(planet_id: int):
+    planet = Planet.query.filter_by(planet_id=planet_id).first()
+    if not planet:
+        return jsonify(message=f'Planet with id = {planet_id} does not exist'), 404
+    else:
+        db.session.delete(planet)
+        db.session.commit()
+        return jsonify(message=f'Planet with id = {planet_id} has been deleted'), 202
+
+
+
+
 # DB MODELS
 class User(db.Model):
     __tablename__ = 'users'
