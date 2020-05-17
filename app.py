@@ -4,6 +4,9 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String, Float
 import os
 from flask_marshmallow import Marshmallow
+from flask_jwt_extended import JWTManager, jwt_required, create_access_token
+# TO MAKE IT WORK, UNCOMMENT AND REGISTER ON mailtrap.io !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# from flask_mail import Mail, Message
 
 # app registration
 app = Flask(__name__)
@@ -12,8 +15,19 @@ app = Flask(__name__)
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'dbname.db')
 
+app.config['JWT_SECRET_KEY'] = 'super-secret'  # change this IRL, its jwt registration
+
+# TO MAKE IT WORK, UNCOMMENT AND REGISTER ON mailtrap.io !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# app.config['MAIL_SERVER'] = 'smtp.mailtrap.io'
+# app.config['MAIL_USERNAME'] = os.environ['MAIL_USERNAME'] # os.environ to zmienna ze sciezki PATH ustawionej w windowsowych zmiennych
+# app.config['MAIL_PASSWORD'] = os.environ['MAIL_PASSWORD'] # os.environ to zmienna ze sciezki PATH ustawionej w windowsowych zmiennych
+
+
 db = SQLAlchemy(app)
 ma = Marshmallow(app) # needed for flask_marshmallow
+jwt = JWTManager(app)
+# TO MAKE IT WORK, UNCOMMENT AND REGISTER ON mailtrap.io !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# mail = Mail(app)
 
 # db creation
 @app.cli.command('db_create') # wywolanie w konsoli : flask db_create
@@ -58,6 +72,7 @@ def db_seed():
     print('db seeded')
     
 
+
 # API ENDPOINTS
 @app.route("/", methods=['GET'])
 def home():
@@ -87,13 +102,59 @@ def planets():
     return jsonify(deserialized_list_of_planets), 200
 
 
+@app.route('/register', methods=['POST'])
+def register():
+    email = request.form['email']
+    test = User.query.filter_by(email=email).first()
+    if test: # if type is none, returns false
+        return jsonify(message='that email has already been used'), 409
+    else:
+        first_name = request.form['first_name']
+        last_name = request.form['last_name']
+        password = request.form['password']
+        user = User(first_name=first_name, last_name=last_name, email=email, password=password)
+        db.session.add(user)
+        db.session.commit()
+        return jsonify(message='User created successfully.'), 201
+
+
+
+@app.route('/login', methods=['POST'])
+def login():
+    if request.is_json:
+        email = request.json['email']
+        password = request.json['password']
+    else: # to have the option to login using both json and form args
+        email = request.form['email']
+        password = request.form['password']
+
+    usr = User.query.filter_by(email=email, password=password).first()
+    if usr: # if usr != None
+        access_token = create_access_token(identity=email) # we can use email for that because for us email is set to be unique
+        return jsonify(message='Login succeeded', access_token=access_token), 200 # 200 does not need to be written
+    else:
+        return jsonify(message='Bad email or password'), 401
+
+
+# TO MAKE IT WORK, UNCOMMENT AND REGISTER ON mailtrap.io !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# @app.route('/retrieve_password/<string:email>', methods=['GET']) # retrieving forgotten password via email
+# def retrieve_password(email: str):
+#     user = user.query.filter_by(email=email).first()
+#     if user:
+#         msg = Message(f"Your password is {user.password}", sender="admin@mailadmina-api.com", recipients=[email])
+#         mail.send(msg)
+#         return jsonify(messate=f"Password has been sent to {email}")
+#     else:
+#         return jsonify(message='That mail does not exist'), 404
+
+
 
 # DB MODELS
 class User(db.Model):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
     first_name = Column(String)
-    last_name = Column(String)
+    last_name = Column(String) 
     email = Column(String, unique=True)
     password = Column(String)
 
